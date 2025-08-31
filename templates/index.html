@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASL to Text - Futuristic</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Orbitron', sans-serif;
+      background-color: #0f0f1b;
+      color: #00ffe0;
+    }
+
+    header {
+      text-align: center;
+      padding: 30px;
+      font-size: 2rem;
+      background: linear-gradient(90deg, #0fffc1, #0ff, #0fffc1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .main-split { display: flex; flex-wrap: wrap; max-width: 1200px; margin: 0 auto; gap: 30px; padding: 0 20px; }
+    .left-panel, .right-panel { flex: 1; min-width: 300px; }
+
+    .container {
+      background: rgba(0, 255, 255, 0.05);
+      border: 2px solid #00ffe0;
+      border-radius: 20px;
+      padding: 30px;
+    }
+
+    .video-box {
+      height: 100%;
+      max-height: 500px;
+      border: 2px dashed #00ffe0;
+      border-radius: 15px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    video { width: 100%; height: 100%; border-radius: 12px; }
+
+    .output-box {
+      padding: 20px;
+      border: 2px solid #00ffe0;
+      border-radius: 15px;
+      min-height: 100px;
+      font-size: 1.2rem;
+      margin-top: 20px;
+    }
+
+    .large-text { font-size: 2rem; text-align: center; margin-top: 15px; font-weight: bold; }
+
+    .btn {
+      margin-top: 20px;
+      margin-right: 10px;
+      padding: 12px 24px;
+      background: #00ffe0;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn:hover { background: #00bfa6; }
+
+    .recording-indicator { display: none; margin-top: 15px; color: #ff4d4d; font-weight: bold; text-align: center; font-size: 1.2rem; }
+
+    .progress-container { width: 100%; height: 20px; background-color: #444; border-radius: 10px; margin-top: 20px; overflow: hidden; }
+    .progress-bar { height: 100%; width: 0; background-color: #00ffe0; border-radius: 10px; transition: width 0.5s ease-in-out; }
+  </style>
+</head>
+
+<body>
+  <header>🧠 ASL to Text Converter</header>
+
+  <div class="main-split">
+    <div class="left-panel">
+      <div class="video-box">
+        <video id="webcam" autoplay playsinline></video>
+      </div>
+    </div>
+
+    <div class="right-panel">
+      <div class="container">
+        <div class="output-box" id="output">
+          <p>Translated text will appear here...</p>
+          <div id="largeText" class="large-text"></div>
+        </div>
+
+        <button class="btn" onclick="toggleSpeak()">▶ Toggle Speech</button>
+        <button class="btn" onclick="trainModel()">🧠 Train Model</button>
+
+        <div style="margin-top: 20px;">
+          <input id="gestureLabel" placeholder="Enter gesture label" class="btn" style="width: 300px;" />
+          <button class="btn" onclick="startRecording()">🎬 Start Recording</button>
+        </div>
+
+        <div id="recordingStatus" class="recording-indicator">● Recording in progress...</div>
+
+        <div class="progress-container">
+          <div id="accuracy-bar" class="progress-bar"></div>
+        </div>
+        <p id="accuracy" style="font-weight: bold; font-size: 18px;"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById("webcam");
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => { video.srcObject = stream; })
+      .catch(err => alert("Webcam access denied: " + err));
+
+    let speakEnabled = true;
+    let recording = false;
+    let samples = 0;
+    let currentLabel = "";
+
+    function toggleSpeak() {
+      speakEnabled = !speakEnabled;
+      fetch('/toggle_speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: speakEnabled })
+      }).then(res => res.json())
+        .then(data => alert("Speech is now " + (data.speak_enabled ? "ENABLED" : "DISABLED")));
+    }
+
+    function startRecording() {
+      const label = document.getElementById('gestureLabel').value.trim();
+      if (!label) { alert("⚠️ Please enter a label first!"); return; }
+      recording = true; samples = 0; currentLabel = label;
+      document.getElementById("recordingStatus").style.display = "block";
+      alert(`Starting to record gestures for: ${label}`);
+    }
+
+    function recordGesture(label) {
+      fetch('/record_gesture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label })
+      }).then(res => res.json()).then(data => console.log(data.message));
+    }
+
+    function updatePrediction() {
+      fetch('/get_prediction')
+        .then(res => res.json())
+        .then(data => {
+          const prediction = data.prediction || 'No gesture detected';
+          document.getElementById('largeText').innerText = prediction;
+          document.getElementById('output').style.border = (prediction === "No gesture detected")
+            ? "2px solid red" : "2px solid #00ffe0";
+
+          if (speakEnabled && prediction && prediction !== "No gesture detected") {
+            const utterance = new SpeechSynthesisUtterance(prediction);
+            utterance.rate = 1; window.speechSynthesis.speak(utterance);
+          }
+
+          if (recording && samples < 5) {
+            recordGesture(currentLabel);
+            samples++;
+            if (samples === 5) {
+              recording = false;
+              document.getElementById("recordingStatus").style.display = "none";
+              alert(`Saved 5 samples for gesture: ${currentLabel}`);
+              document.getElementById('gestureLabel').value = "";
+            }
+          }
+        });
+    }
+
+    function trainModel() {
+      fetch('/train_model', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => alert(data.message))
+        .catch(err => { alert("Error training model."); console.error(err); });
+    }
+
+    function updateAccuracy(accuracy) {
+      document.getElementById('accuracy').innerText = `Model Accuracy: ${accuracy.toFixed(2)}%`;
+      document.getElementById('accuracy-bar').style.width = `${accuracy.toFixed(2)}%`;
+    }
+
+    setInterval(updatePrediction, 1000);
+
+    fetch('/model_accuracy')
+      .then(res => res.json())
+      .then(data => updateAccuracy(data.accuracy))
+      .catch(err => console.error("Error fetching accuracy: ", err));
+  </script>
+</body>
+</html>
