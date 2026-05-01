@@ -1,5 +1,6 @@
-import mediapipe.python.solutions.hands as mp_hands
-import mediapipe.python.solutions.drawing_utils as mp_draw
+import mediapipe as mp
+mp_hands = mp.solutions.hands
+mp_draw = mp.solutions.drawing_utils
 import cv2
 import csv
 from sklearn.ensemble import RandomForestClassifier
