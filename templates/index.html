@@ -605,16 +605,16 @@
                     <label
                         style="display: block; text-align: left; font-family: 'Rajdhani'; font-size: 12px; margin-bottom: 8px; color: var(--neon);">EMAIL
                         ADDRESS</label>
-                    <input type="email" placeholder="EMAIL@EXAMPLE.COM">
+                    <input type="email" id="reg-email" placeholder="EMAIL@EXAMPLE.COM">
                 </div>
                 <div style="margin-bottom: 30px;">
                     <label
                         style="display: block; text-align: left; font-family: 'Rajdhani'; font-size: 12px; margin-bottom: 8px; color: var(--neon);">CREATE
                         PASSWORD</label>
-                    <input type="password" placeholder="••••••••">
+                    <input type="password" id="reg-password" placeholder="••••••••">
                 </div>
                 <button class="neo-btn neo-btn-solid" style="width: 100%;"
-                    onclick="alert('Registration started. Please wait.')">CREATE ACCOUNT</button>
+                    onclick="register()">CREATE ACCOUNT</button>
             </div>
         </div>
     </div>
@@ -1066,8 +1066,13 @@
         }
 
         function register() {
-            const email = document.getElementById("email").value;
-            const password = document.getElementById("password").value;
+            const email = document.getElementById("reg-email").value;
+            const password = document.getElementById("reg-password").value;
+
+            if (!email || !password) {
+                alert("Please fill in both email and password");
+                return;
+            }
 
             fetch("/register", {
                 method: "POST",
