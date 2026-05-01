@@ -45,6 +45,13 @@ def home():
     from flask import redirect, url_for
     return redirect(url_for("index"))
 
+@app.route('/favicon.ico')
+def favicon():
+    from flask import send_from_directory
+    import os
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     # Safe fallback for unexpected errors
@@ -224,8 +231,11 @@ def process_image(data):
     global word_mode, word_buffer, last_added_letter, current_inference_mode, yolo_model
     global asl_model, isl_model, hands, mp_hands, mp_draw
     
-    load_models_if_needed()
-    
+    # If background thread hasn't finished loading ML, return the original frame immediately
+    if not models_loaded:
+        emit('processed_image', {'image': data, 'prediction': 'INITIALIZING ML...', 'confidence': 0})
+        return
+        
     # Import locally to avoid global blocking
     from gesture_recognition import predict_gesture
 
