@@ -16,8 +16,6 @@ Features:
 
 Author: SilentEcho Team
 """
-import eventlet
-eventlet.monkey_patch()
 
 from flask import Flask, render_template, Response, jsonify, request, session
 from flask_socketio import SocketIO, emit
