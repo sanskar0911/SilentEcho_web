@@ -118,9 +118,9 @@ current_accuracy = 0
 isl_model = None
 yolo_model = None
 
-mp_hands = mp.solutions.hands
+mp_hands = None
 hands = None
-mp_draw = mp.solutions.drawing_utils
+mp_draw = None
 
 models_loaded = False
 
