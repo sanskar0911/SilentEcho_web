@@ -4,6 +4,7 @@ import os
 port = os.environ.get("PORT", "10000")
 bind = f"0.0.0.0:{port}"
 
-# These are fallback settings in case the CLI flags are missing
-worker_class = "eventlet"
+# Use standard threads instead of eventlet to support Flask-SocketIO in threading mode
+worker_class = "gthread"
+threads = 4
 workers = 1
