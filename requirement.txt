@@ -1,7 +1,7 @@
 flask
 flask-socketio
 eventlet
-mediapipe==0.9.0.1
+mediapipe==0.10.9
 scikit-learn
 opencv-python-headless
 numpy
