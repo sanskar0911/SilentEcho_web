@@ -1,4 +1,5 @@
-import mediapipe as mp
+import mediapipe.python.solutions.hands as mp_hands
+import mediapipe.python.solutions.drawing_utils as mp_draw
 import cv2
 import csv
 from sklearn.ensemble import RandomForestClassifier
@@ -8,40 +9,69 @@ import time
 
 engine = pyttsx3.init()
 
-def load_and_train_model(csv_path="gesture_data.csv"):
+def load_and_train_model(csv_paths=["gesture_data.csv"]):
+    if isinstance(csv_paths, str):
+        csv_paths = [csv_paths]
+    
     x = []
     y = []
-    try:
-        with open(csv_path, "r") as f:
-            reader = csv.reader(f)
-            next(reader)
-            for row in reader:
-                label = row[0]
-                values = [float(val) for val in row[1:]]
+    
+    for path in csv_paths:
+        try:
+            with open(path, "r") as f:
+                reader = csv.reader(f)
+                header = next(reader, None)
+                
+                # Check if first row is a header or data
+                first_row = None
+                if header:
+                    try:
+                        # If first element can be float, it's probably data (no header)
+                        float(header[1])
+                        first_row = header
+                    except (ValueError, IndexError):
+                        # It's a header, skip it
+                        pass
+                
+                rows_to_process = list(reader)
+                if first_row:
+                    rows_to_process = [first_row] + rows_to_process
 
-                # Normalize landmarks (same as app.py)
-                x_vals = values[:21]
-                y_vals = values[21:]
-                base_x = x_vals[0]
-                base_y = y_vals[0]
-                norm_x = [x - base_x for x in x_vals]
-                norm_y = [y - base_y for y in y_vals]
-                landmarks = norm_x + norm_y
+                for row in rows_to_process:
+                    if not row: continue
+                    label = row[0]
+                    values = [float(val) for val in row[1:]]
 
-                y.append(label)
-                x.append(landmarks)
-    except FileNotFoundError:
-        print(f"[⚠️] File '{csv_path}' not found. Model not trained.")
-        return None, 0.0  # ⬅️ return default accuracy
+                    # Normalize landmarks (same as app.py)
+                    x_vals = values[:21]
+                    y_vals = values[21:]
+                    base_x = x_vals[0]
+                    base_y = y_vals[0]
+                    norm_x = [xv - base_x for xv in x_vals]
+                    norm_y = [yv - base_y for yv in y_vals]
+                    landmarks = norm_x + norm_y
+
+                    y.append(label)
+                    x.append(landmarks)
+            print(f"[✅] Loaded training data from: {path}")
+        except FileNotFoundError:
+            print(f"[⚠️] File '{path}' not found. Skipping.")
+        except Exception as e:
+            print(f"[❌] Error loading '{path}': {e}")
+
+    if not x:
+        print("[⚠️] No training data found. Model not trained.")
+        return None, 0.0
 
     model = RandomForestClassifier(n_estimators=100)
     X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
     model.fit(X_train, y_train)
 
     accuracy = model.score(X_test, y_test)
-    print("Accuracy: ", accuracy)
+    print("Combined Model Accuracy: ", accuracy)
 
-    return model, accuracy  # ✅ return both
+    return model, accuracy
+
 
 
 def predict_gesture(model, landmarks):
@@ -53,9 +83,7 @@ def predict_gesture(model, landmarks):
 
 # The following code block is only run when this script is executed directly
 if __name__ == "__main__":
-    mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(min_detection_confidence=0.8, min_tracking_confidence=0.8, max_num_hands=2)
-    mp_draw = mp.solutions.drawing_utils
 
     cam = cv2.VideoCapture(0)
     sentence = []

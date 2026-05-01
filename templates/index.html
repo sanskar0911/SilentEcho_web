@@ -1,175 +1,1304 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ASL to Text - Futuristic</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap');
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Orbitron',sans-serif; background:#0f0f1b; color:#00ffe0; }
-    header { text-align:center; padding:30px; font-size:2rem; letter-spacing:2px;
-      background:linear-gradient(90deg,#0fffc1,#0ff,#0fffc1);
-      -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-    .main-split { display:flex; flex-wrap:wrap; max-width:1200px; margin:0 auto; gap:30px; padding:0 20px; }
-    .left-panel,.right-panel { flex:1; min-width:300px; }
-    .container { background:rgba(0,255,255,0.05); border:2px solid #00ffe0; border-radius:20px;
-      backdrop-filter:blur(8px); box-shadow:0 0 20px #00ffe0; padding:30px; }
-    .video-box { max-height:500px; border:2px dashed #00ffe0; border-radius:15px;
-      display:flex; justify-content:center; align-items:center; overflow:hidden; }
-    .video-box img { width:100%; height:100%; object-fit:cover; border-radius:12px; }
-    .output-box { padding:20px; border:2px solid #00ffe0; border-radius:15px; min-height:100px;
-      background-color:rgba(0,255,255,0.05); color:#00ffe0; font-size:1.2rem; margin-top:20px; }
-    .btn { margin-top:15px; margin-right:10px; padding:12px 20px; background:#00ffe0; color:#000;
-      font-family:'Orbitron',sans-serif; border:none; border-radius:8px; cursor:pointer; transition:0.3s; }
-    .btn:hover { background:#00bfa6; }
-    .toggle { position:fixed; top:20px; right:20px; z-index:1000; }
-    .toggle input { display:none; }
-    .toggle label { width:60px; height:30px; background:#222; border:2px solid #00ffe0;
-      border-radius:50px; display:block; position:relative; cursor:pointer; transition:0.3s; }
-    .toggle label::after { content:''; width:24px; height:24px; background:#00ffe0; border-radius:50%;
-      position:absolute; top:1px; left:1px; transition:0.3s; }
-    .toggle input:checked+label::after { left:33px; background:#ff00ff; }
-    .toggle input:checked+label { border-color:#ff00ff; }
-    body.light-mode { background:#f5f5f5; color:#111; }
-    body.light-mode .container { background:white; border-color:#333; box-shadow:0 0 10px #ccc; }
-    body.light-mode .video-box, body.light-mode .output-box { border-color:#333; background:#fafafa; color:#111; }
-    .progress-container { width:100%; height:20px; background:#444; border-radius:10px; margin-top:20px; overflow:hidden; }
-    .progress-bar { height:100%; width:0; background:#00ffe0; border-radius:10px; transition:width 0.5s; }
-    /* Modal styles */
-    .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-      background:rgba(15,15,27,0.95); color:#00ffe0; padding:40px; overflow-y:auto; z-index:2000; }
-    #wordModal { display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-      background:#1c1c2b; color:#00ffe0; padding:20px; border:2px solid #00ffe0; border-radius:12px; z-index:2000; }
-  </style>
+    <meta charset="UTF-8">
+    <title>SilentEcho | Professional Neural Interpreter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Rajdhani:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
+    <style>
+        :root {
+            --azure: #3b82f6;
+            --azure-glow: rgba(59, 130, 246, 0.4);
+            --neon: #22d3ee;
+            --neon-glow: rgba(34, 211, 238, 0.6);
+            --bg: #020617;
+            --slate-main: #0f172a;
+            --slate-light: #1e293b;
+            --glass: rgba(15, 23, 42, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.05);
+            --danger: #ef4444;
+            --accent: #6366f1;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --cam-w: 672px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.03) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.03) 0px, transparent 50%);
+            font-family: "Inter", sans-serif;
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+
+        /* --- Animations --- */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+                filter: blur(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+                filter: blur(0);
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 0.8;
+            }
+
+            50% {
+                transform: scale(1.05);
+                opacity: 1;
+            }
+        }
+
+        @keyframes scanline {
+            0% {
+                transform: translateY(-100%);
+            }
+
+            100% {
+                transform: translateY(100%);
+            }
+        }
+
+        /* --- Custom UI: Logo & Branding --- */
+        .brand-container {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .svg-logo {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 0 15px var(--neon-glow));
+            animation: pulse 3s infinite ease-in-out;
+        }
+
+        .logo-text {
+            font-family: "Rajdhani", sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            color: var(--text-main);
+            text-shadow: 0 0 10px var(--azure-glow);
+        }
+
+        @keyframes shine {
+            to {
+                background-position: 200% center;
+            }
+        }
+
+        .tagline {
+            font-family: "Inter";
+            font-size: 11px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 5px;
+            font-weight: 500;
+        }
+
+        /* --- HUD Layout --- */
+        .hud-panel {
+            background: var(--glass);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid var(--glass-border);
+            position: relative;
+            border-radius: 8px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .hud-panel::before,
+        .hud-panel::after {
+            display: none;
+        }
+
+        .hud-panel::before {
+            top: -2px;
+            left: -2px;
+            border-right: 0;
+            border-bottom: 0;
+        }
+
+        .hud-panel::after {
+            bottom: -2px;
+            right: -2px;
+            border-left: 0;
+            border-top: 0;
+        }
+
+        /* --- Navbar --- */
+        .navbar {
+            height: 90px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 50px;
+            background: rgba(2, 6, 18, 0.95);
+            border-bottom: 1px solid var(--glass-border);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        /* --- Auth Layer --- */
+        .login-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #020617;
+        }
+
+        .login-screen::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, transparent, #020617),
+                url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80') center/cover;
+            opacity: 0.15;
+            z-index: 1;
+        }
+
+        .login-card {
+            width: 440px;
+            padding: 50px 40px;
+            z-index: 10;
+            background: var(--glass);
+            backdrop-filter: blur(25px);
+            border: 1px solid var(--glass-border);
+            animation: fadeIn 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .login-card::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+            transition: 0.5s;
+        }
+
+        .login-card:hover::after {
+            left: 100%;
+            transition: 0.8s;
+        }
+
+        .auth-toggle {
+            display: flex;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 50px;
+            padding: 5px;
+            margin-bottom: 30px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .auth-toggle button {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            padding: 12px;
+            font-family: 'Rajdhani';
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+        }
+
+        .auth-toggle button.active {
+            background: var(--azure);
+            color: #fff;
+            box-shadow: 0 4px 12px var(--azure-glow);
+        }
+
+        .auth-form input {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .auth-form input:focus {
+            background: rgba(0, 0, 0, 0.5);
+            border-color: var(--azure);
+            box-shadow: 0 0 0 2px var(--azure-glow);
+        }
+
+        .auth-form {
+            display: none;
+        }
+
+        .auth-form.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        /* --- Main Content --- */
+        .master-grid {
+            display: grid;
+            grid-template-columns: 110px 1fr;
+            gap: 30px;
+            padding: 40px;
+            max-width: 1700px;
+            margin: auto;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            padding: 30px 10px;
+            align-items: center;
+            height: fit-content;
+            position: sticky;
+            top: 110px;
+            background: rgba(15, 23, 42, 0.3);
+            backdrop-filter: blur(15px);
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .side-btn {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-family: "Rajdhani", sans-serif;
+            font-size: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            text-transform: uppercase;
+        }
+
+        .side-btn:hover,
+        .side-btn.active {
+            color: var(--neon);
+            text-shadow: 0 0 10px var(--neon-glow);
+        }
+
+        .icon-hex {
+            width: 46px;
+            height: 46px;
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.02);
+            font-size: 18px;
+            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            margin-bottom: 5px;
+        }
+
+        /* Inner Border Ring */
+        .icon-hex::after {
+            content: "";
+            position: absolute;
+            inset: 3px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            clip-path: inherit;
+            pointer-events: none;
+        }
+
+        .side-btn:hover .icon-hex,
+        .side-btn.active .icon-hex {
+            border-color: var(--neon);
+            background: rgba(34, 211, 238, 0.15);
+            box-shadow:
+                0 0 20px rgba(34, 211, 238, 0.3),
+                inset 0 0 10px rgba(34, 211, 238, 0.2);
+            transform: translateY(-3px) scale(1.05);
+            color: var(--neon);
+        }
+
+        .side-btn:hover .icon-hex::after {
+            border-color: rgba(34, 211, 238, 0.4);
+        }
+
+        .dashboard-layout {
+            display: flex;
+            gap: 40px;
+            animation: fadeIn 1s ease;
+            align-items: flex-start;
+            /* Ensure children don't stretch weirdly for sticky */
+        }
+
+        /* DASHBOARD COLS */
+        .cam-col {
+            flex: 0 0 var(--cam-w);
+            position: sticky;
+            top: 110px;
+            /* Navbar 90px + 20px buffer */
+            height: fit-content;
+        }
+
+        .data-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .cam-view {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            overflow: hidden;
+            position: relative;
+            border-radius: 4px;
+        }
+
+        .cam-view img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .prediction-hud {
+            text-align: center;
+            padding: 30px;
+            background: radial-gradient(circle at center, rgba(34, 211, 238, 0.05), transparent);
+        }
+
+        .output-val {
+            font-family: "Orbitron";
+            font-size: 64px;
+            font-weight: 900;
+            color: var(--azure);
+            text-shadow: 0 0 40px var(--azure-glow);
+            letter-spacing: 6px;
+        }
+
+        /* --- Buttons --- */
+        .neo-btn {
+            font-family: "Inter";
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            padding: 12px 20px;
+            border: 1px solid var(--azure);
+            background: transparent;
+            color: var(--azure);
+            cursor: pointer;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+
+        .neo-btn:hover {
+            background: var(--azure);
+            color: #fff;
+            box-shadow: 0 4px 15px var(--azure-glow);
+            transform: translateY(-2px);
+        }
+
+        .neo-btn-solid {
+            border: none;
+            background: linear-gradient(135deg, var(--neon), var(--accent));
+            color: #fff;
+        }
+
+        .btn-red {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        .btn-red:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        input {
+            width: 100%;
+            padding: 18px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--glass-border);
+            color: white;
+            font-family: "Rajdhani";
+            font-size: 18px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        input:focus {
+            border-color: var(--neon);
+            outline: none;
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        /* --- Content Modules --- */
+        .module {
+            display: block;
+            margin-bottom: 60px;
+            padding-top: 20px;
+            animation: fadeIn 0.8s ease;
+        }
+
+        .module.active {
+            display: block;
+        }
+
+        .asl-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 15px;
+        }
+
+        .asl-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--glass-border);
+            padding: 20px 10px;
+            text-align: center;
+            font-weight: 700;
+            border-radius: 8px;
+        }
+
+        .asl-item:hover {
+            border-color: var(--neon);
+            transform: translateY(-3px);
+            background: rgba(34, 211, 238, 0.05);
+        }
+
+        /* Settings Toggle UI */
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .toggle-switch {
+            width: 50px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .toggle-switch::after {
+            content: "";
+            position: absolute;
+            left: 2px;
+            top: 2px;
+            width: 20px;
+            height: 20px;
+            background: var(--text-dim);
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        .toggle-switch.on::after {
+            left: 28px;
+            background: var(--neon);
+            box-shadow: 0 0 10px var(--neon);
+        }
+
+        .toggle-switch.on {
+            background: rgba(34, 211, 238, 0.2);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
 </head>
+
 <body>
-  <header>🤟 Futuristic ASL to Text Converter</header>
-  <div class="toggle"><input type="checkbox" id="darkToggle"><label for="darkToggle"></label></div>
 
-  <div class="main-split">
-    <div class="left-panel">
-      <div class="video-box"><img src="{{ url_for('video') }}" alt="Webcam Stream"></div>
+    <!-- AUTHENTICATION (Splash + Login) -->
+    <div id="loginScreen" class="login-screen">
+        <div class="hud-panel login-card">
+            <div class="brand-container">
+                <div class="svg-logo" style="display: flex; align-items: center; justify-content: center; font-size: 60px; margin: 0 auto 20px auto; background: rgba(34, 211, 238, 0.05); border-radius: 20px; border: 1px solid rgba(34, 211, 238, 0.2); box-shadow: inset 0 0 15px rgba(34, 211, 238, 0.1), 0 0 15px var(--neon-glow); text-shadow: 0 0 10px var(--neon-glow);">
+                    ✊
+                </div>
+                <div class="logo-text" style="font-size: 28px;">SILENTECHO</div>
+                <div class="tagline">Sign in to your account</div>
+            </div>
+
+            <div class="auth-toggle">
+                <button id="toggle-signin" class="active" onclick="switchAuth('signin')">LOGIN</button>
+                <button id="toggle-signup" onclick="switchAuth('signup')">REGISTER</button>
+            </div>
+
+            <!-- Sign In Form -->
+            <div id="signin-form" class="auth-form active">
+                <div style="margin-bottom: 25px;">
+                    <label
+                        style="display: block; text-align: left; font-family: 'Rajdhani'; font-size: 12px; margin-bottom: 8px; color: var(--neon);">EMAIL
+                        ADDRESS</label>
+                    <input type="email" id="email" placeholder="YOURNAME@EMAIL.COM">
+                </div>
+                <div style="margin-bottom: 35px;">
+                    <label
+                        style="display: block; text-align: left; font-family: 'Rajdhani'; font-size: 12px; margin-bottom: 8px; color: var(--neon);">PASSWORD</label>
+                    <input type="password" id="password" placeholder="••••••••">
+                </div>
+                <button class="neo-btn neo-btn-solid" style="width: 100%;" onclick="login()">SIGN IN</button>
+            </div>
+
+            <!-- Sign Up Form -->
+            <div id="signup-form" class="auth-form">
+                <div style="margin-bottom: 20px;">
+                    <label
+                        style="display: block; text-align: left; font-family: 'Rajdhani'; font-size: 12px; margin-bottom: 8px; color: var(--neon);">YOUR
+                        NAME</label>
+                    <input type="text" placeholder="ENTER YOUR FULL NAME">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label
+                        style="display: block; text-align: left; font-family: 'Rajdhani'; font-size: 12px; margin-bottom: 8px; color: var(--neon);">EMAIL
+                        ADDRESS</label>
+                    <input type="email" placeholder="EMAIL@EXAMPLE.COM">
+                </div>
+                <div style="margin-bottom: 30px;">
+                    <label
+                        style="display: block; text-align: left; font-family: 'Rajdhani'; font-size: 12px; margin-bottom: 8px; color: var(--neon);">CREATE
+                        PASSWORD</label>
+                    <input type="password" placeholder="••••••••">
+                </div>
+                <button class="neo-btn neo-btn-solid" style="width: 100%;"
+                    onclick="alert('Registration started. Please wait.')">CREATE ACCOUNT</button>
+            </div>
+        </div>
     </div>
-
-    <div class="right-panel">
-      <div class="container">
-        <div class="output-box" id="output"><p>Waiting for gesture...</p></div>
-
-        <button class="btn" onclick="toggleSpeak()">🔊 Toggle Speech</button>
-        <button class="btn" onclick="toggleHelp()">❓ Help</button>
-        <button class="btn" onclick="toggleChart()">📖 ASL Chart</button>
-        <button class="btn" onclick="trainModel()">🧠 Train Model</button>
-        <button class="btn" onclick="startWordMode()">✍️ Spell a Word</button>
-        <button class="btn" id="finishWordBtn" onclick="finishWord()" style="display:none;">✅ Finish Word</button>
-
-        <div style="margin-top:20px;">
-          <input id="gestureLabel" placeholder="Enter gesture label" class="btn" style="width: 280px;" />
-          <button class="btn" onclick="startRecording()">🎬 Start Recording</button>
+    <!-- MAIN INTERFACE -->
+    <header class="navbar">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div style="width: 45px; height: 45px; border-radius: 8px; border: 1px solid var(--azure); display: flex; align-items: center; justify-content: center; font-size: 24px; background: rgba(59, 130, 246, 0.1); box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.2), 0 0 10px var(--azure-glow); text-shadow: 0 0 8px var(--azure-glow);">
+                ✊
+            </div>
+            <div>
+                <div class="logo-text" style="font-size: 20px; letter-spacing: 4px;">SILENTECHO</div>
+                <div class="tagline"
+                    style="font-size: 10px; margin-top: 2px; letter-spacing: 1px; color: var(--azure);">
+                    Sign Language Assistant v6.0</div>
+            </div>
         </div>
 
-        <div class="progress-container"><div id="accuracy-bar" class="progress-bar"></div></div>
-        <p id="accuracy" style="font-weight:bold; font-size:18px;"></p>
-      </div>
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <button class="neo-btn btn-red" onclick="logout()"
+                style="font-size: 10px; padding: 10px 15px;">LOGOUT</button>
+        </div>
+    </header>
+
+    <div class="master-grid">
+
+        <!-- SIDEBAR -->
+        <div class="sidebar hud-panel">
+            <button class="side-btn" onclick="showModule('aslChart')">
+                <div class="icon-hex">A</div>
+                <span>ASL Letters</span>
+            </button>
+            <button class="side-btn" onclick="showModule('islAlphabetChart')">
+                <div class="icon-hex">🔠</div>
+                <span>ISL Letters</span>
+            </button>
+            <button class="side-btn" onclick="showModule('islChart')">
+                <div class="icon-hex">🇮🇳</div>
+                <span>ISL Words</span>
+            </button>
+            <hr style="width: 40%; opacity: 0.1; margin: 10px 0;">
+           
+            <button class="side-btn" onclick="showModule('Help')">
+                <div class="icon-hex">❓</div>
+                <span>Help</span>
+            </button>
+        </div>
+
+        <!-- DASHBOARD HUD -->
+        <div class="dashboard-layout">
+            <!-- LEFT: CAMERA & PROFILE -->
+            <div class="cam-col">
+                <div class="cam-view hud-panel">
+                    <video id="webcam" autoplay playsinline style="display:none;"></video>
+                    <canvas id="hidden-canvas" style="display:none;"></canvas>
+                    <img id="output-frame" src="" alt="Neural Feed">
+                    <!-- HUD OVERLAY FOR PREDICTION -->
+                    <div id="prediction" style="
+                        position: absolute;
+                        bottom: 20px;
+                        left: 0;
+                        right: 0;
+                        text-align: center;
+                        font-family: 'Orbitron';
+                        font-size: 38px;
+                        font-weight: 900;
+                        color: var(--azure);
+                        text-shadow: 0 0 20px var(--azure-glow);
+                        z-index: 10;
+                        pointer-events: none;
+                        letter-spacing: 4px;
+                    "></div>
+                    <div class="scanline"></div>
+                </div>
+
+                <div class="hud-panel" style="padding: 30px; margin-top: 30px;">
+                    <h4
+                        style="font-family: 'Rajdhani'; font-size: 12px; font-weight: 700; color: var(--azure); letter-spacing: 2px; margin-bottom: 20px;">
+                        SYSTEM COMMANDS</h4>
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button id="voice-btn" class="neo-btn" onclick="toggleSpeech()">🔊 Voice: ON</button>
+                        <button class="neo-btn" onclick="startWord()">▶ Build Word</button>
+                        <button class="neo-btn btn-red" onclick="finishWord()">■ Finish Word</button>
+                        <button class="neo-btn" onclick="deleteLetter()">⌫</button>
+                    </div>
+                </div>
+
+                <!-- SENTENCE BUILDER PANEL -->
+                <div class="hud-panel" style="padding: 30px; margin-top: 30px;">
+                    <h4
+                        style="font-family: 'Rajdhani'; font-size: 12px; font-weight: 700; color: var(--azure); letter-spacing: 2px; margin-bottom: 20px;">
+                        SENTENCE BUILDER</h4>
+                    <div id="current-sentence" style="background: rgba(0, 0, 0, 0.4); padding: 15px; border: 1px solid var(--glass-border); border-radius: 8px; margin-bottom: 15px; font-family: 'Orbitron'; font-size: 14px; color: var(--neon); min-height: 50px; word-wrap: break-word;"></div>
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button class="neo-btn" onclick="addWordToSentence()">➕ Add Word</button>
+                        <button class="neo-btn" onclick="speakSentence()">🔊 Speak Sentence</button>
+                        <button class="neo-btn btn-red" onclick="clearSentence()">■ Clear Sentence</button>
+                    </div>
+                </div>
+
+                <div class="hud-panel" style="padding: 30px; margin-top: 30px;">
+                    <h4
+                        style="font-family: 'Rajdhani'; font-size: 12px; font-weight: 700; color: var(--azure); letter-spacing: 2px; margin-bottom: 20px;">
+                        MODEL TRAINING</h4>
+                    <input type="text" id="gesture-name" placeholder="Enter word name here">
+                    <button class="neo-btn neo-btn-solid" style="width: 100%; margin-top: 10px;"
+                        onclick="startRecording()">RECORD SIGNS</button>
+                </div>
+
+                <!-- PERSISTENT MISSION BRIEFING (ABOUT US) -->
+                <div class="hud-panel" style="padding: 30px; margin-top: 30px; border-style: dashed;">
+                    <h4
+                        style="font-family: 'Rajdhani'; font-size: 12px; font-weight: 700; color: var(--azure); letter-spacing: 2px; margin-bottom: 20px;">
+                        MISSION BRIEFING</h4>
+                    <p style="font-size: 13px; color: var(--text-dim); line-height: 1.6; margin-bottom: 15px;">
+                        SilentEcho helps you communicate using sign language and artificial intelligence.
+                    </p>
+                    <div
+                        style="font-size: 11px; color: var(--text-dim); display: grid; grid-template-columns: 1fr; gap: 5px; opacity: 0.8;">
+                        <span>• Built with MediaPipe</span>
+                        <span>• Flask Framework v3.0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: DYNAMIC DATA -->
+            <div class="data-col">
+
+                <!-- CONVERSATION HISTORY & ACCURACY PANEL -->
+                <div class="hud-panel" style="padding: 30px; margin-bottom: 30px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h4 style="font-family: 'Rajdhani'; font-size: 16px; font-weight: 700; color: var(--azure); letter-spacing: 2px;">LAST 5 CONVERSATIONS</h4>
+                        <div id="accuracy-display" style="font-family: 'Orbitron'; font-size: 14px; color: var(--neon); text-shadow: 0 0 10px var(--neon-glow); border: 1px solid rgba(34, 211, 238, 0.3); padding: 5px 15px; border-radius: 6px; background: rgba(34, 211, 238, 0.05);">Accuracy: --%</div>
+                    </div>
+                    <div id="conversation-history" style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="color: var(--text-dim); font-size: 14px; font-style: italic;">Loading history...</div>
+                    </div>
+                </div>
+
+                <div class="hud-panel" style="flex:1; padding: 40px;">
+
+
+
+                    <!-- ASL MODULE -->
+                    <div class="module" id="aslChart">
+                        <h3 style="font-family: 'Rajdhani'; color: var(--neon); font-size: 16px; margin-bottom: 25px;">
+                            ASL ALPHABET GUIDE</h3>
+                        <div class="asl-grid">
+                            <div class="asl-item">A ✊</div>
+                            <div class="asl-item">B ✋</div>
+                            <div class="asl-item">C 🤏</div>
+                            <div class="asl-item">D ☝️</div>
+                            <div class="asl-item">E ✊</div>
+                            <div class="asl-item">F 👌</div>
+                            <div class="asl-item">G 👉</div>
+                            <div class="asl-item">H ✌️</div>
+                            <div class="asl-item">I ☝️</div>
+                            <div class="asl-item">J ✍️</div>
+                            <div class="asl-item">K ✌️</div>
+                            <div class="asl-item">L 👍</div>
+                            <div class="asl-item">M ✊</div>
+                            <div class="asl-item">N ✊</div>
+                            <div class="asl-item">O 🤏</div>
+                            <div class="asl-item">P 👇</div>
+                            <div class="asl-item">Q 👇</div>
+                            <div class="asl-item">R 🤞</div>
+                            <div class="asl-item">S ✊</div>
+                            <div class="asl-item">T ✊</div>
+                            <div class="asl-item">U ✌️</div>
+                            <div class="asl-item">V ✌️</div>
+                            <div class="asl-item">W 🤟</div>
+                            <div class="asl-item">X ☝️</div>
+                            <div class="asl-item">Y 🤙</div>
+                            <div class="asl-item">Z ✍️</div>
+                        </div>
+                    </div>
+
+                    <!-- ISL MODULE -->
+                    <div class="module" id="islChart">
+
+
+
+                        <h3 style="font-family: 'Orbitron'; color: var(--neon); font-size: 16px; margin-bottom: 25px;">
+                            ISL EMOJI SIGNS</h3>
+                        <div class="asl-grid">
+                            <div class="asl-item">HELLO 👋👋</div>
+                            <div class="asl-item">THANK YOU 🙏</div>
+                            <div class="asl-item">PLEASE 🤲</div>
+                            <div class="asl-item">SORRY 🙇</div>
+                            <div class="asl-item">HELP 👐</div>
+                            <div class="asl-item">LOVE 🤝</div>
+                            <div class="asl-item">FRIEND 🫱🫲🏻</div>
+                            <div class="asl-item">STOP ✋✋</div>
+                            <div class="asl-item">COME 👉👈</div>
+                            <div class="asl-item">GO 👉</div>
+                            <div class="asl-item">YES 👍👍</div>
+                            <div class="asl-item">NO ✋</div>
+                        </div>
+                    </div>
+
+                    <!-- ISL ALPHABET MODULE -->
+                    <div class="module" id="islAlphabetChart">
+
+
+
+                        <h3 style="font-family: 'Orbitron'; color: var(--neon); font-size: 16px; margin-bottom: 25px;">
+                            ISL ALPHABET EMOJIS</h3>
+                        <div class="asl-grid">
+                            <div class="asl-item">A ✊✊</div>
+                            <div class="asl-item">B ✋✋</div>
+                            <div class="asl-item">C �🤏</div>
+                            <div class="asl-item">D ☝️✋</div>
+                            <div class="asl-item">E ✊✋</div>
+                            <div class="asl-item">F 👌✋</div>
+                            <div class="asl-item">G 👉✋</div>
+                            <div class="asl-item">H ✌️✋</div>
+                            <div class="asl-item">I ☝️☝️</div>
+                            <div class="asl-item">J ✍️✋</div>
+                            <div class="asl-item">K ✌️✌️</div>
+                            <div class="asl-item">L 👍✋</div>
+                            <div class="asl-item">M ✊🤚</div>
+                            <div class="asl-item">N ✊🖐</div>
+                            <div class="asl-item">O 🤏🤏</div>
+                            <div class="asl-item">P 👇✋</div>
+                            <div class="asl-item">Q 👇👇</div>
+                            <div class="asl-item">R 🤞✋</div>
+                            <div class="asl-item">S ✊✊</div>
+                            <div class="asl-item">T ✊✋</div>
+                            <div class="asl-item">U ✌️✌️</div>
+                            <div class="asl-item">V ✌️✋</div>
+                            <div class="asl-item">W 🤟✋</div>
+                            <div class="asl-item">X ☝️✊</div>
+                            <div class="asl-item">Y 🤙✋</div>
+                            <div class="asl-item">Z ✍️✋</div>
+                        </div>
+                    </div>
+
+                    <!-- HELP MODULE -->
+                    <div class="module" id="Help" style="display: none;">
+                        <h3 style="font-family: 'Orbitron'; color: var(--neon); font-size: 16px; margin-bottom: 25px;">
+                            SYSTEM INSTRUCTIONS</h3>
+
+                        <style>
+                            .help-container {
+                                position: relative;
+                                margin-top: 20px;
+                            }
+
+                            .help-content {
+                                max-height: 0;
+                                overflow: hidden;
+                                transition: max-height 0.5s ease-out, opacity 0.3s ease-in;
+                                opacity: 0;
+                                background: rgba(15, 23, 42, 0.4);
+                                border-radius: 8px;
+                                padding: 0 20px;
+                                border: 1px solid transparent;
+                            }
+
+                            .help-container:hover .help-content {
+                                max-height: 800px;
+                                opacity: 1;
+                                padding: 25px 20px;
+                                border-color: var(--glass-border);
+                                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+                            }
+
+                            .help-trigger {
+                                background: linear-gradient(90deg, rgba(34, 211, 238, 0.1), transparent);
+                                border-left: 3px solid var(--neon);
+                                padding: 15px 20px;
+                                cursor: default;
+                                display: inline-block;
+                                border-radius: 0 8px 8px 0;
+                                font-weight: 600;
+                            }
+
+                            .help-section-title {
+                                color: var(--azure);
+                                font-family: 'Rajdhani';
+                                font-size: 18px;
+                                font-weight: 700;
+                                margin-bottom: 10px;
+                                letter-spacing: 1px;
+                            }
+
+                            .help-text {
+                                color: var(--text-dim);
+                                font-size: 14px;
+                                line-height: 1.7;
+                                margin-bottom: 20px;
+                            }
+                        </style>
+
+                        <div class="help-container">
+                            <div class="help-trigger">
+                                ℹ️ Hover here for Help & Instructions
+                            </div>
+
+                            <div class="help-content">
+                                <div class="help-section-title">How To Use</div>
+                                <div class="help-text">
+                                    Sit facing the camera with your hands completely visible in the frame. Navigate
+                                    using the sidebar on the left.
+                                    To construct complete words in ASL mode, simply hit the "▶ Build Word" button under
+                                    System Commands.
+                                    When finished, hit "■ Clear" to reset the transcription system.
+                                </div>
+
+                                <div class="help-section-title">Why SilentEcho is Needed</div>
+                                <div class="help-text">
+                                    SilentEcho uses sophisticated neural frameworks (MediaPipe & Neural Interpreters) to
+                                    break down communication barriers.
+                                    By bridging the gap between those who rely on native sign languages (ASL / ISL) and
+                                    the spoken world, we create unparalleled access.
+                                </div>
+
+                                <div class="help-section-title">Implementation</div>
+                                <div class="help-text">
+                                    This dashboard is implemented on the Flask v3.0 framework interacting directly with
+                                    MediaPipe model backends.
+                                    A Python processing node calculates hand joint positions in real time (usually
+                                    30fps+ depending on hardware)
+                                    feeding into a lightweight deep neural network to predict the gestures accurately.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
     </div>
-  </div>
 
-  <!-- Help Modal -->
-  <div id="helpModal" class="modal">
-    <h2>❓ How to Use</h2>
-    <p>1️⃣ Allow camera access.<br>
-       2️⃣ Show a gesture clearly.<br>
-       3️⃣ Prediction appears in real-time.<br>
-       4️⃣ Use 🔊 to enable/disable speech.<br>
-       5️⃣ Use ✍️ to spell words letter by letter.<br>
-       6️⃣ Open 📖 to view ASL chart.<br>
-       7️⃣ Use 🧠 Train Model after recording gestures.<br>
-       8️⃣ Toggle 🌙 top-right for dark/light.</p>
-    <p><button class="btn" onclick="toggleHelp()">Close</button></p>
-  </div>
+    <script>
+        let wordModeActive = false;
+        let builtWord = "";
+        let lastLetter = "";
+        let cooldown = false;
+        let currentSentence = "";
+        let lastPredictionRaw = "";
+        let speakEnabled = true;
+        let selectedLang = 'en';
 
-  <!-- Chart Modal -->
-  <div id="chartModal" class="modal">
-    <h2>📖 ASL Alphabet Chart</h2>
-    <img src="{{ url_for('static', filename='asl_chart.png') }}" alt="ASL Chart"
-         style="max-width:100%;border:2px solid #00ffe0;border-radius:12px;">
-    <p><button class="btn" onclick="toggleChart()">Close</button></p>
-  </div>
+        function speak_logic(text, force = false) {
+            console.log("Attempting to speak:", text, "Mode:", speakEnabled, "Force:", force);
+            if (!text) return;
+            if (!force && !speakEnabled) return;
+            
+            // Cancel any current speech
+            window.speechSynthesis.cancel();
+            
+            const ut = new SpeechSynthesisUtterance(text);
+            ut.lang = selectedLang === 'hi' ? 'hi-IN' : 'en-US';
+            ut.rate = 1.0;
+            ut.volume = 1.0;
 
-  <!-- Word Mode Modal -->
-  <div id="wordModal">
-    <h3>✍️ Word Formation Mode</h3>
-    <p id="wordBuffer">Word: </p>
-  </div>
+            // Optional: Find a specific voice if available
+            const voices = window.speechSynthesis.getVoices();
+            if (voices.length > 0) {
+                const targetLang = ut.lang.split('-')[0];
+                const bestVoice = voices.find(v => v.lang.startsWith(targetLang)) || voices[0];
+                ut.voice = bestVoice;
+            }
 
-  <script>
-    // dark/light toggle
-    const toggle = document.getElementById("darkToggle");
-    toggle.addEventListener("change",()=>{document.body.classList.toggle("light-mode",toggle.checked);});
-
-    let speakEnabled = true, recording=false, samples=0, currentLabel="", wordMode=false, currentWord="";
-
-    function toggleSpeak(){
-      speakEnabled=!speakEnabled;
-      fetch('/toggle_speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:speakEnabled})})
-      .then(res=>res.json()).then(data=>alert("Speech is now "+(data.speak_enabled?"ENABLED":"DISABLED")));
-    }
-
-    function toggleHelp(){const m=document.getElementById('helpModal');m.style.display=m.style.display==='none'?'block':'none';}
-    function toggleChart(){const m=document.getElementById('chartModal');m.style.display=m.style.display==='none'?'block':'none';}
-
-    function startRecording(){
-      const label=document.getElementById('gestureLabel').value.trim();
-      if(!label){alert("Enter a label first!");return;}
-      recording=true;samples=0;currentLabel=label;alert(`Recording for: ${label}`);
-    }
-    function recordGesture(label){
-      fetch('/record_gesture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})})
-      .then(res=>res.json()).then(data=>console.log(data.message));
-    }
-
-    function startWordMode(){
-      wordMode=true;currentWord="";
-      document.getElementById("wordBuffer").innerText="Word: ";
-      document.getElementById("wordModal").style.display="block";
-      document.getElementById("finishWordBtn").style.display="inline-block";
-      fetch('/start_word_mode',{method:'POST'});
-    }
-    function finishWord(){
-      wordMode=false;
-      document.getElementById("wordModal").style.display="none";
-      document.getElementById("finishWordBtn").style.display="none";
-      fetch('/finish_word',{method:'POST'}).then(res=>res.json()).then(data=>{
-        alert("Word completed: "+data.word);
-        document.getElementById('output').innerHTML=`<p>${data.word}</p>`;
-        const u=new SpeechSynthesisUtterance(data.word);u.rate=1;window.speechSynthesis.speak(u);
-      });
-    }
-
-    function updatePrediction(){
-      fetch('/get_prediction').then(res=>res.json()).then(data=>{
-        if(wordMode){
-          if(data.prediction){currentWord+=data.prediction;document.getElementById("wordBuffer").innerText="Word: "+currentWord;}
-        }else{
-          document.getElementById('output').innerHTML=`<p>${data.prediction||'No gesture detected'}</p>`;
-          if(speakEnabled&&data.prediction){const u=new SpeechSynthesisUtterance(data.prediction);u.rate=1;window.speechSynthesis.speak(u);}
+            ut.onstart = () => console.log("Speech started");
+            ut.onerror = (e) => console.error("Speech error:", e);
+            
+            window.speechSynthesis.speak(ut);
         }
-        if(recording&&samples<5){recordGesture(currentLabel);samples++;if(samples===5){recording=false;alert(`Saved 5 samples for: ${currentLabel}`);document.getElementById('gestureLabel').value="";}}
-      });
-    }
 
-    function trainModel(){
-      fetch('/train_model',{method:'POST'}).then(res=>res.json()).then(data=>alert(data.message))
-      .catch(err=>{alert("Error training model.");console.error(err);});
-    }
+        // Web Speech API voices are loaded asynchronously
+        window.speechSynthesis.onvoiceschanged = () => {
+            console.log("Voices loaded:", window.speechSynthesis.getVoices().length);
+        };
 
-    function updateAccuracy(accuracy){
-      const e=document.getElementById('accuracy'),bar=document.getElementById('accuracy-bar');
-      e.innerText=`Model Accuracy: ${accuracy.toFixed(2)}%`;bar.style.width=`${accuracy.toFixed(2)}%`;
-    }
+        function testSpeech() {
+            speak_logic("Voice system operational.");
+        }
 
-    setInterval(updatePrediction,2000);
-    fetch('/model_accuracy').then(res=>res.json()).then(data=>updateAccuracy(data.accuracy)).catch(err=>console.error(err));
-  </script>
+        function showModule(id) {
+            document.querySelectorAll(".module").forEach(m => {
+                m.style.display = "none";
+                m.classList.remove("active");
+            });
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = "block";
+                el.classList.add("active");
+            }
+        }
+
+        function openMode(mode) {
+            fetch("/set_mode", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode: mode })
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function switchAuth(type) {
+            document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+            document.querySelectorAll('.auth-toggle button').forEach(b => b.classList.remove('active'));
+            if (type === 'signin') {
+                document.getElementById('signin-form').classList.add('active');
+                document.getElementById('toggle-signin').classList.add('active');
+            } else {
+                document.getElementById('signup-form').classList.add('active');
+                document.getElementById('toggle-signup').classList.add('active');
+            }
+        }
+
+        function login() {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+
+            fetch("/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: email, password: password })
+            })
+                .then(d => d.json())
+                .then(data => {
+                    if (data.status == "ok") {
+                        document.getElementById("loginScreen").style.display = "none";
+                    } else {
+                        alert("AUTHORIZATION DENIED: Access level not recognized.");
+                    }
+                })
+                .catch(() => {
+                    console.warn("OFFLINE PREVIEW MODE: Bypassing Server Security");
+                    document.getElementById("loginScreen").style.display = "none";
+                });
+        }
+
+        function logout() {
+            document.getElementById("loginScreen").style.display = "flex";
+            document.getElementById("email").value = "";
+            document.getElementById("password").value = "";
+        }
+
+        function register() {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+
+            fetch("/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: email, password: password })
+            })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status == "ok") alert("REGISTRATION SUCCESSFUL. IDENTITY REGISTERED.");
+                    else alert("ERROR: Identity already exists in database.");
+                });
+        }
+
+        function toggleT(el) {
+            el.classList.toggle('on');
+            if (el.id === 'tog-scan') {
+                document.querySelector('.scanline').style.display = el.classList.contains('on') ? 'block' : 'none';
+            }
+        }
+
+        let lastSpoken = "";
+        let normalCooldown = false;
+
+        const socket = io();
+        const video = document.getElementById('webcam');
+        const hiddenCanvas = document.getElementById('hidden-canvas');
+        const ctx = hiddenCanvas.getContext('2d');
+        const outputFrame = document.getElementById('output-frame');
+
+        // Request webcam access
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(err => console.error("Error accessing webcam:", err));
+
+        // Send frames at 10 fps to server
+        setInterval(() => {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                hiddenCanvas.width = video.videoWidth;
+                hiddenCanvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+                const dataURL = hiddenCanvas.toDataURL('image/jpeg', 0.5); // compress
+                socket.emit('image', dataURL);
+            }
+        }, 100);
+
+        socket.on('processed_image', (data) => {
+            outputFrame.src = data.image;
+            
+            let current = (data.prediction || "").toUpperCase();
+            if (!current) return;
+            
+            let displayStr = current;
+            if (data.confidence !== undefined && data.confidence !== null) {
+                displayStr = `${current} (${Math.round(data.confidence)}%)`;
+            }
+
+            if (wordModeActive) {
+                if (current !== lastLetter && !cooldown) {
+                    builtWord += current;
+                    lastLetter = current;
+                    document.getElementById("prediction").innerText = builtWord;
+                    speak_logic(current); 
+                    cooldown = true;
+                    setTimeout(() => cooldown = false, 1200);
+                }
+            } else {
+                if (current !== lastSpoken && !normalCooldown) {
+                    speak_logic(current);
+                    lastSpoken = current;
+                    normalCooldown = true;
+                    setTimeout(() => normalCooldown = false, 1500); // Prevent repeating too fast
+                }
+                document.getElementById("prediction").innerText = displayStr;
+                lastPredictionRaw = current;
+            }
+        });
+
+        function updateHistory() {
+            fetch("/get_history")
+                .then(r => r.json())
+                .then(data => {
+                    let hist = Array.isArray(data) ? data : (data.history || []);
+                    if(hist.length === 0) {
+                        document.getElementById("conversation-history").innerHTML = '<div style="color: var(--text-dim); font-size: 14px; font-style: italic;">No history available.</div>';
+                        return;
+                    }
+                    let html = "";
+                    hist.slice(0, 5).forEach(text => {
+                        const safeText = text.replace(/'/g, "\\'");
+                        html += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 12px 15px; border-radius: 6px; font-family: 'Inter'; font-size: 14px; color: var(--text-main); margin-bottom: 5px;">
+                            <span style="flex: 1; margin-right: 10px;">${text}</span>
+                            <button class="neo-btn" style="padding: 4px 8px; font-size: 9px; flex-shrink: 0;" onclick="speak_logic('${safeText}', true)">🔊 SPEAK</button>
+                        </div>`;
+                    });
+                    document.getElementById("conversation-history").innerHTML = html;
+                })
+                .catch(() => {});
+        }
+        setInterval(updateHistory, 3000);
+
+        setInterval(() => {
+            fetch("/get_accuracy")
+                .then(r => r.json())
+                .then(data => {
+                    let accuracy = data.accuracy || 0;
+                    document.getElementById("accuracy-display").innerText = `Accuracy: ${accuracy}%`;
+                })
+                .catch(() => {});
+        }, 5000);
+
+        function startWord() {
+            wordModeActive = true;
+            builtWord = ""; lastLetter = "";
+            document.getElementById("prediction").innerText = "INITIALIZING...";
+            fetch("/start_word_mode", { method: "POST" });
+        }
+
+        function finishWord() {
+            wordModeActive = false;
+            fetch("/finish_word", { method: "POST" })
+                .then(r => r.json())
+                .then(d => {
+                    let word = d.word || "";
+                    let suggestion = d.suggestion || word;
+                    
+                    if (suggestion) {
+                        document.getElementById("prediction").innerText = suggestion.toUpperCase();
+                        lastPredictionRaw = suggestion;
+                        
+                        // Add to sentence automatically
+                        addWordToSentence(suggestion);
+                        
+                        // Speak the suggestion
+                        speak_logic(suggestion);
+                    } else {
+                        document.getElementById("prediction").innerText = "COMPLETE";
+                    }
+                });
+        }
+
+        function deleteLetter() {
+            fetch("/delete_letter", { method: "POST" })
+                .then(r => r.json())
+                .then(d => {
+                    builtWord = d.word;
+                    document.getElementById("prediction").innerText = builtWord;
+                });
+        }
+
+        function toggleSpeech() { 
+            speakEnabled = !speakEnabled;
+            updateVoiceUI();
+            fetch("/toggle_speak", { 
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: speakEnabled })
+            }); 
+        }
+
+        function updateVoiceUI() {
+            const btn = document.getElementById('voice-btn');
+            if (btn) {
+                btn.innerText = `🔊 Voice: ${speakEnabled ? 'ON' : 'OFF'}`;
+                btn.style.color = speakEnabled ? 'var(--neon)' : 'var(--text-dim)';
+                btn.style.borderColor = speakEnabled ? 'var(--neon)' : 'var(--glass-border)';
+            }
+        }
+
+        // Initialize UI state on load
+        window.addEventListener('DOMContentLoaded', () => {
+             updateVoiceUI();
+             updateHistory(); // Initial load
+             // Optionally sync with server
+             fetch("/toggle_speak", { 
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: speakEnabled }) 
+             });
+        });
+
+        function startRecording() {
+            let label = document.getElementById("gesture-name").value;
+            if (!label) return alert("INIT ERROR: Gesture label required.");
+            fetch("/start_collection", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ label: label })
+            });
+            document.getElementById("prediction").innerText = "RECORDING...";
+        }
+
+        function setLanguage(lang) {
+            selectedLang = lang;
+            fetch("/set_language", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lang: lang })
+            });
+        }
+
+        function addWordToSentence(manualWord = null) {
+            let wordToAdd = manualWord || lastPredictionRaw;
+            if (!wordToAdd) return;
+            
+            fetch("/add_word", { 
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ word: wordToAdd })
+            });
+            
+            currentSentence += (currentSentence ? " " : "") + wordToAdd;
+            document.getElementById("current-sentence").innerText = currentSentence.toUpperCase();
+            
+            // Visual feedback
+            const display = document.getElementById("current-sentence");
+            display.style.borderColor = "var(--neon)";
+            setTimeout(() => display.style.borderColor = "var(--glass-border)", 500);
+        }
+
+        function speakSentence() {
+            fetch("/speak_sentence", { method: "POST" });
+            speak_logic(currentSentence);
+        }
+
+        function clearSentence() {
+            if (currentSentence.trim()) {
+                fetch("/clear_sentence", { 
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sentence: currentSentence })
+                });
+            }
+            currentSentence = "";
+            document.getElementById("current-sentence").innerText = "";
+        }
+
+    </script>
 </body>
+
 </html>

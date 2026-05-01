@@ -1,209 +1,506 @@
-from flask import Flask, render_template, Response, jsonify, request
+"""
+SilentEcho - Professional Neural Interpreter for Sign Language Recognition
+
+This Flask web application provides real-time sign language recognition using
+machine learning models (YOLO and Random Forest classifiers) and computer vision
+techniques with MediaPipe for hand tracking.
+
+Features:
+- ASL (American Sign Language) recognition
+- ISL (Indian Sign Language) recognition for two-handed signs
+- Real-time video streaming
+- User authentication
+- Word and sentence building
+- Text-to-speech functionality
+- Model training and data collection
+
+Author: SilentEcho Team
+"""
+
+from flask import Flask, render_template, Response, jsonify, request, session
+from flask_socketio import SocketIO, emit
 import cv2
 import mediapipe as mp
 import os
 import csv
 import subprocess
 import time
+import sqlite3
+import base64
+import numpy as np
+from werkzeug.security import generate_password_hash, check_password_hash
+from ultralytics import YOLO
+
 from gesture_recognition import load_and_train_model, predict_gesture
 
 app = Flask(__name__)
+app.secret_key = "secret"
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Load model and accuracy
-model, current_accuracy = load_and_train_model()
+# =====================
+# SQLITE AUTH
+# =====================
+def init_db():
+    """
+    Initialize the SQLite database for user authentication.
+    Creates a 'users' table with id, email, and password fields.
+    """
+    conn = sqlite3.connect("users.db")
+    c = conn.cursor()
 
-# Mediapipe setup
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS users(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE,
+        password TEXT
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+init_db()
+
+
+@app.route("/register", methods=["POST"])
+def register():
+    """
+    Handle user registration.
+    Expects JSON with 'email' and 'password' fields.
+    Returns success or error status.
+    """
+    data = request.get_json()
+    email = data["email"]
+    password = generate_password_hash(data["password"])
+
+    conn = sqlite3.connect("users.db")
+    c = conn.cursor()
+
+    try:
+        c.execute("INSERT INTO users(email,password) VALUES (?,?)",(email,password))
+        conn.commit()
+    except:
+        return jsonify({"status":"exists"})
+
+    conn.close()
+    return jsonify({"status":"ok"})
+
+
+@app.route("/login", methods=["POST"])
+def login():
+    """
+    Handle user login.
+    Expects JSON with 'email' and 'password' fields.
+    Returns success or failure status and sets session.
+    """
+    data = request.get_json()
+
+    conn = sqlite3.connect("users.db")
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM users WHERE email=?",(data["email"],))
+    user = c.fetchone()
+
+    conn.close()
+
+    if user and check_password_hash(user[2],data["password"]):
+        session["user"]=data["email"]
+        return jsonify({"status":"ok"})
+
+    return jsonify({"status":"fail"})
+
+
+# =====================
+# LOAD MODELS
+# =====================
+# Load ASL model from gesture_data.csv
+asl_model, current_accuracy = load_and_train_model()
+# Load ISL model from isl_gesture_data.csv
+isl_model,_ = load_and_train_model("isl_gesture_data.csv")
+
+# Try to load YOLO model for additional recognition
+try:
+    yolo_model = YOLO("runs/classify/train3/weights/best.pt")
+except:
+    try:
+        yolo_model = YOLO("best.pt")
+    except:
+        print("WARNING: YOLO model not found")
+        yolo_model = None
+
+# =====================
+# MEDIAPIPE
+# =====================
+# Initialize MediaPipe Hands for hand tracking
 mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7, min_tracking_confidence=0.7)
+hands = mp_hands.Hands(
+    max_num_hands=2,
+    min_detection_confidence=0.7,
+    min_tracking_confidence=0.7,
+)
+
 mp_draw = mp.solutions.drawing_utils
 
-# Globals
-latest_prediction = "No gesture detected"
-latest_landmarks = []
-last_prediction = None
-speak_enabled = True
-last_spoken = 0
 
-# === Word Mode Feature ===
-word_mode = False
-word_buffer = []
+# =====================
+# GLOBAL STATE
+# =====================
+camera=None  # Video capture object
+latest_prediction=""  # Current recognized gesture
+latest_confidence=0   # Confidence score of prediction
+last_prediction=None  # Previous prediction for debouncing
+last_spoken=0  # Timestamp of last spoken prediction
+speak_enabled=True  # Toggle for text-to-speech
+current_inference_mode="auto"  # "yolo", "mediapipe", or "auto"
+
+# Word mode variables
+word_mode=False
+word_buffer=[]  # Letters collected for word building
+last_added_letter=None
+
+# Sentence building features
+sentence_buffer=[]  # Words collected for sentence
+conversation_history=[]  # History of conversations
+language="en"  # Language for TTS
 
 
-def gen_frames():
-    global latest_prediction, latest_landmarks, last_prediction, last_spoken, word_mode, word_buffer
-    cap = cv2.VideoCapture(0)
+# =====================
+# VIDEO STREAM
+# =====================
+@socketio.on('image')
+def process_image(data):
+    """
+    WebSocket event listener for video frames.
+    Receives base64 image from client, performs gesture recognition,
+    and emits the annotated frame and prediction back.
+    """
+    global latest_prediction, last_prediction, last_spoken, latest_confidence
+    global word_mode, word_buffer, last_added_letter, current_inference_mode, yolo_model
 
-    while True:
-        success, frame = cap.read()
-        if not success:
-            break
+    try:
+        # Decode base64 image
+        encoded_data = data.split(',')[1]
+        nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         frame = cv2.flip(frame, 1)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        result = hands.process(rgb)
+
+        prediction = ""
+        confidence = 0
+        yolo_pred = None
+        yolo_conf = 0
+        use_mediapipe = False
+        
+        if current_inference_mode in ["yolo", "auto"] and yolo_model:
+            results = yolo_model.predict(frame, imgsz=160, verbose=False)
+            if len(results) > 0:
+                probs = results[0].probs
+                if probs is not None:
+                    for idx in probs.top5:
+                        class_name = results[0].names[int(idx)]
+                        if len(class_name) == 1 and class_name.isalpha():
+                            yolo_pred = class_name
+                            yolo_conf = float(probs.data[int(idx)]) * 100.0
+                            break
+            
+            if yolo_pred and (current_inference_mode == "yolo" or (current_inference_mode == "auto" and yolo_conf >= 60.0)):
+                prediction = yolo_pred
+                confidence = round(yolo_conf, 2)
+            else:
+                use_mediapipe = True
+        else:
+            use_mediapipe = True
+
+        if use_mediapipe:
+            result = hands.process(rgb)
+            asl_pred = None
+            isl_pred = None
+
+            if result.multi_hand_landmarks:
+                num_hands = len(result.multi_hand_landmarks)
+
+                cv2.putText(frame, f"Hands: {num_hands}", (10, 100),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+
+                for hand_landmarks in result.multi_hand_landmarks:
+                    mp_draw.draw_landmarks(
+                        frame,
+                        hand_landmarks,
+                        mp_hands.HAND_CONNECTIONS
+                    )
+
+                # ASL
+                h = result.multi_hand_landmarks[0]
+                x = [lm.x for lm in h.landmark]
+                y = [lm.y for lm in h.landmark]
+                bx = x[0]; by = y[0]
+                land = [(v - bx) for v in x] + [(v - by) for v in y]
+
+                if asl_model:
+                    probs = asl_model.predict_proba([land])[0]
+                    max_index = probs.argmax()
+                    asl_pred = asl_model.classes_[max_index]
+                    confidence = round(probs[max_index] * 100, 2)
+
+                # ISL
+                if num_hands == 2:
+                    def norm(h):
+                        x = [lm.x for lm in h.landmark]
+                        y = [lm.y for lm in h.landmark]
+                        bx = x[0]; by = y[0]
+                        return [(v - bx) for v in x] + [(v - by) for v in y]
+
+                    land2 = norm(result.multi_hand_landmarks[0]) + \
+                            norm(result.multi_hand_landmarks[1])
+
+                    if isl_model:
+                        probs = isl_model.predict_proba([land2])[0]
+                        max_index = probs.argmax()
+                        isl_pred = isl_model.classes_[max_index]
+                        confidence = round(probs[max_index] * 100, 2)
+
+                if isl_pred:
+                    prediction = isl_pred
+                elif asl_pred:
+                    prediction = asl_pred
+
+        if prediction:
+            if prediction == last_prediction and time.time() - last_spoken > 1.2:
+                latest_prediction = prediction
+                latest_confidence = confidence
+
+                if word_mode:
+                    if prediction != last_added_letter:
+                        word_buffer.append(prediction)
+                        last_added_letter = prediction
+
+                last_spoken = time.time()
+
+            else:
+                last_prediction = prediction
+
+        cv2.putText(frame, f"Mode: {current_inference_mode.upper()}", (10, 70),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+
+        cv2.putText(frame, f"{latest_prediction} ({latest_confidence}%)", (10, 40),
+        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+        _, buffer = cv2.imencode(".jpg", frame)
+        encoded_img = base64.b64encode(buffer).decode('utf-8')
+        emit('processed_image', {
+            'image': f'data:image/jpeg;base64,{encoded_img}',
+            'prediction': latest_prediction,
+            'confidence': latest_confidence
+        })
+
+    except Exception as e:
+        print(f"Error processing image: {e}")
+
+# =====================
+# ROUTES
+# =====================
+@app.route("/")
+def index():
+    """Serve the main HTML page."""
+    return render_template("index.html")
+
+
+@app.route("/get_prediction")
+def get_prediction():
+    """Return current prediction and confidence as JSON."""
+    return jsonify({
+        "prediction":latest_prediction,
+        "confidence":latest_confidence
+    })
+
+@app.route("/set_mode", methods=["POST"])
+def set_mode():
+    """Set the inference mode (yolo, mediapipe, auto)."""
+    global current_inference_mode
+    mode = request.get_json().get("mode", "auto")
+    if mode in ["yolo", "mediapipe", "auto"]:
+        current_inference_mode = mode
+    return jsonify({"mode": current_inference_mode})
+
+@app.route("/toggle_speak", methods=["POST"])
+def toggle_speak():
+    """Toggle text-to-speech functionality."""
+    global speak_enabled
+    speak_enabled=request.get_json().get("enabled",True)
+    return jsonify({"speak_enabled":speak_enabled})
+
+
+# =====================
+# WORD MODE
+# =====================
+@app.route("/start_word_mode",methods=["POST"])
+def start_word_mode():
+    """Start word building mode."""
+    global word_mode,word_buffer,last_added_letter
+    word_mode=True
+    word_buffer=[]
+    last_added_letter=None
+    return jsonify({"msg":"started"})
+
+
+@app.route("/finish_word",methods=["POST"])
+def finish_word():
+    """Finish word building and optionally speak it."""
+    global word_mode,last_added_letter
+    word_mode=False
+    final="".join(word_buffer)
+    last_added_letter=None
+
+    if speak_enabled and final:
+        subprocess.Popen([
+        "python","-c",
+        f"import pyttsx3; e=pyttsx3.init(); e.say('{final}'); e.runAndWait()"
+        ])
+
+    return jsonify({"word":final})
+
+
+@app.route("/delete_letter",methods=["POST"])
+def delete_letter():
+    """Delete the last letter from word buffer."""
+    global word_buffer
+    if word_buffer:
+        word_buffer.pop()
+    return jsonify({"word":"".join(word_buffer)})
+
+
+# =====================
+# NEW FEATURES
+# =====================
+
+@app.route("/add_word", methods=["POST"])
+def add_word():
+    """Add current word buffer to sentence buffer."""
+    global sentence_buffer, word_buffer
+
+    word="".join(word_buffer)
+
+    if word:
+        sentence_buffer.append(word)
+
+    word_buffer=[]
+
+    return jsonify({"sentence":" ".join(sentence_buffer)})
+
+
+@app.route("/speak_sentence", methods=["POST"])
+def speak_sentence():
+    """Speak the current sentence buffer."""
+    global sentence_buffer
+
+    sentence=" ".join(sentence_buffer)
+
+    if sentence:
+        subprocess.Popen([
+            "python","-c",
+            f"import pyttsx3; e=pyttsx3.init(); e.say('{sentence}'); e.runAndWait()"
+        ])
+
+    return jsonify({"sentence":sentence})
+
+
+@app.route("/get_history")
+def get_history():
+    """Return conversation history."""
+    return jsonify({"history":conversation_history})
+
+
+@app.route("/get_accuracy")
+def get_accuracy():
+    """Return current model accuracy."""
+    return jsonify({"accuracy":round(current_accuracy*100,2)})
+
+
+@app.route("/set_language", methods=["POST"])
+def set_language():
+    """Set language for text-to-speech."""
+    global language
+    language=request.json.get("lang","en")
+    return jsonify({"lang":language})
+
+
+# =====================
+# TRAIN MODEL
+# =====================
+@app.route("/train_model", methods=["POST"])
+def train_model():
+    """Retrain the ASL model with current data."""
+    global asl_model,current_accuracy
+    asl_model,current_accuracy=load_and_train_model()
+    return jsonify({"accuracy":round(current_accuracy*100,2)})
+
+
+# =====================
+# START COLLECTION
+# =====================
+@app.route("/start_collection", methods=["POST"])
+def start_collection():
+    """
+    Start collecting gesture data for a new label.
+    Collects 100 samples of hand landmarks.
+    """
+
+    global camera
+    label=request.json.get("label","").strip()
+    if not label:
+        return jsonify({"error":"Label required"})
+
+    filename="gesture_data.csv"
+    file_exists=os.path.isfile(filename)
+
+    samples=0
+
+    while samples<100:
+
+        if camera is None or not camera.isOpened():
+            camera=cv2.VideoCapture(0)
+
+        ret,frame=camera.read()
+        if not ret:
+            continue
+
+        frame=cv2.flip(frame,1)
+
+        rgb=cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
+        result=hands.process(rgb)
 
         if result.multi_hand_landmarks:
-            for hand_landmarks in result.multi_hand_landmarks:
-                mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-                base_x = hand_landmarks.landmark[0].x
-                base_y = hand_landmarks.landmark[0].y
-                x_vals = [lm.x - base_x for lm in hand_landmarks.landmark]
-                y_vals = [lm.y - base_y for lm in hand_landmarks.landmark]
-                landmarks = x_vals + y_vals
-                latest_landmarks = landmarks
-                prediction = predict_gesture(model, landmarks)
 
-                if prediction:
-                    if prediction == last_prediction:
-                        if time.time() - last_spoken > 1.5:
-                            latest_prediction = prediction
-                            if word_mode:
-                                word_buffer.append(prediction)
-                            if speak_enabled:
-                                subprocess.Popen([
-                                    "python",
-                                    "-c",
-                                    f"import pyttsx3; e=pyttsx3.init(); e.say('{prediction}'); e.runAndWait()"
-                                ])
-                            last_spoken = time.time()
-                    else:
-                        last_prediction = prediction
-        else:
-            latest_prediction = "No gesture detected"
-            latest_landmarks = []
-            last_prediction = None
+            h=result.multi_hand_landmarks[0]
 
-        _, buffer = cv2.imencode('.jpg', frame)
-        frame = buffer.tobytes()
-        yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            x=[lm.x for lm in h.landmark]
+            y=[lm.y for lm in h.landmark]
+
+            bx=x[0];by=y[0]
+
+            land=[(v-bx) for v in x]+[(v-by) for v in y]
+
+            if len(land)==42:
+
+                with open(filename,"a",newline="") as f:
+
+                    w=csv.writer(f)
+
+                    if not file_exists:
+                        w.writerow(["label"]+[f"f{i}" for i in range(42)])
+                        file_exists=True
+
+                    w.writerow([label]+land)
+
+                    samples+=1
+
+        cv2.waitKey(10)
+
+    return jsonify({"samples":samples})
 
 
-# === ROUTES ===
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-
-@app.route('/video')
-def video():
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
-@app.route('/get_prediction')
-def get_prediction():
-    return jsonify({"prediction": latest_prediction})
-
-
-@app.route('/get_accuracy')
-def get_accuracy():
-    return jsonify({"accuracy": round(current_accuracy * 100, 2)})
-
-
-@app.route('/train_model_csv', methods=['POST'])
-def train_model_csv():
-    global model, current_accuracy
-    try:
-        print("[🧠] Training model from CSV...")
-        model, current_accuracy = load_and_train_model()
-        print("Accuracy:", current_accuracy)
-        return jsonify({"message": f"Training complete. Accuracy: {round(current_accuracy * 100, 2)}%"})
-    except Exception as e:
-        print("[❌] Training failed:", e)
-        return jsonify({"message": "Training failed", "error": str(e)})
-
-
-@app.route('/train_model', methods=['POST'])
-def train_model():
-    return train_model_csv()
-
-
-@app.route('/toggle_speak', methods=['POST'])
-def toggle_speak():
-    global speak_enabled
-    data = request.get_json()
-    speak_enabled = data.get('enabled', True)
-    return jsonify({"speak_enabled": speak_enabled})
-
-
-@app.route('/start_collection', methods=['POST'])
-def start_collection():
-    label = request.json.get("label", "").strip()
-    if not label:
-        return jsonify({"status": "error", "message": "Label is required."})
-
-    try:
-        cap = cv2.VideoCapture(0)
-        mp_hands = mp.solutions.hands
-        hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1,
-                               min_detection_confidence=0.7, min_tracking_confidence=0.7)
-        mp_draw = mp.solutions.drawing_utils
-
-        filename = "gesture_data.csv"
-        file_exists = os.path.isfile(filename)
-        samples = 0
-        max_samples = 100
-
-        while samples < max_samples:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            frame = cv2.flip(frame, 1)
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            result = hands.process(rgb)
-            if result.multi_hand_landmarks:
-                for hand_landmarks in result.multi_hand_landmarks:
-                    x_vals = [lm.x for lm in hand_landmarks.landmark]
-                    y_vals = [lm.y for lm in hand_landmarks.landmark]
-                    base_x = x_vals[0]
-                    base_y = y_vals[0]
-                    norm_x = [x - base_x for x in x_vals]
-                    norm_y = [y - base_y for y in y_vals]
-                    landmarks = norm_x + norm_y
-                    if len(landmarks) == 42:
-                        with open(filename, "a", newline='') as f:
-                            writer = csv.writer(f)
-                            if not file_exists:
-                                writer.writerow(["label"] + [f"f{i}" for i in range(42)])
-                                file_exists = True
-                            writer.writerow([label] + landmarks)
-                        samples += 1
-                        print(f"[+] Collected sample {samples} for '{label}'.")
-            cv2.waitKey(10)
-
-        cap.release()
-        return jsonify({"status": "success", "message": f"Collected {samples} samples for '{label}'."})
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Failed to collect data: {str(e)}"})
-
-
-@app.route('/record_gesture', methods=['POST'])
-def record_gesture():
-    return start_collection()
-
-
-@app.route('/model_accuracy')
-def model_accuracy():
-    return get_accuracy()
-
-
-# === WORD MODE ROUTES ===
-@app.route('/start_word_mode', methods=['POST'])
-def start_word_mode():
-    global word_mode, word_buffer
-    word_mode = True
-    word_buffer = []
-    return jsonify({"message": "Word mode started"})
-
-
-@app.route('/finish_word', methods=['POST'])
-def finish_word():
-    global word_mode, word_buffer
-    word_mode = False
-    final_word = "".join(word_buffer)
-    return jsonify({"word": final_word})
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    print(f"Starting Flask server on port {port}")
-    app.run(host="0.0.0.0", port=port, debug=False)
+# =====================
+if __name__=="__main__":
+    print("🚀 Running http://localhost:5000")
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True)

@@ -1,6 +1,10 @@
 flask
+flask-socketio
+eventlet
 mediapipe
 scikit-learn
 opencv-python-headless
 numpy
-pyttsx3
+ultralytics
+werkzeug
+gunicorn
