@@ -30,12 +30,25 @@ import numpy as np
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = "secret"
+app.secret_key = os.environ.get("SECRET_KEY", "fallback-secret")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+
+# Start background loading thread
+import threading
 
 @app.route("/health")
 def health_check():
     return jsonify({"status": "ok", "message": "Server is running"})
+
+@app.route("/home")
+def home():
+    from flask import redirect, url_for
+    return redirect(url_for("index"))
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Safe fallback for unexpected errors
+    return jsonify({"status": "error", "message": "Internal Server Error"}), 500
 
 # =====================
 # SQLITE AUTH
@@ -64,50 +77,55 @@ init_db()
 
 @app.route("/register", methods=["POST"])
 def register():
-    """
-    Handle user registration.
-    Expects JSON with 'email' and 'password' fields.
-    Returns success or error status.
-    """
-    data = request.get_json()
-    email = data["email"]
-    password = generate_password_hash(data["password"])
-
-    conn = sqlite3.connect("users.db")
-    c = conn.cursor()
-
+    """Handle user registration safely."""
     try:
-        c.execute("INSERT INTO users(email,password) VALUES (?,?)",(email,password))
-        conn.commit()
-    except:
-        return jsonify({"status":"exists"})
+        data = request.get_json(force=True, silent=True)
+        if not data or "email" not in data or "password" not in data:
+            return jsonify({"status": "fail", "message": "Invalid payload"})
+            
+        email = data["email"]
+        password = generate_password_hash(data["password"])
 
-    conn.close()
-    return jsonify({"status":"ok"})
+        conn = sqlite3.connect("users.db")
+        c = conn.cursor()
+
+        try:
+            c.execute("INSERT INTO users(email,password) VALUES (?,?)", (email, password))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            return jsonify({"status": "exists"})
+        finally:
+            conn.close()
+
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print(f"Registration Error: {e}")
+        return jsonify({"status": "fail"})
 
 
 @app.route("/login", methods=["POST"])
 def login():
-    """
-    Handle user login.
-    Expects JSON with 'email' and 'password' fields.
-    Returns success or failure status and sets session.
-    """
-    data = request.get_json()
+    """Handle user login safely."""
+    try:
+        data = request.get_json(force=True, silent=True)
+        if not data or "email" not in data or "password" not in data:
+            return jsonify({"status": "fail", "message": "Invalid payload"})
 
-    conn = sqlite3.connect("users.db")
-    c = conn.cursor()
+        conn = sqlite3.connect("users.db")
+        c = conn.cursor()
 
-    c.execute("SELECT * FROM users WHERE email=?",(data["email"],))
-    user = c.fetchone()
+        c.execute("SELECT * FROM users WHERE email=?", (data["email"],))
+        user = c.fetchone()
+        conn.close()
 
-    conn.close()
+        if user and check_password_hash(user[2], data["password"]):
+            session["user"] = data["email"]
+            return jsonify({"status": "ok"})
 
-    if user and check_password_hash(user[2],data["password"]):
-        session["user"]=data["email"]
-        return jsonify({"status":"ok"})
-
-    return jsonify({"status":"fail"})
+        return jsonify({"status": "fail"})
+    except Exception as e:
+        print(f"Login Error: {e}")
+        return jsonify({"status": "fail"})
 
 
 # =====================
@@ -165,6 +183,9 @@ def load_models_if_needed():
     )
     models_loaded = True
     print("Models loaded successfully.")
+
+# Spawn background loading thread
+threading.Thread(target=load_models_if_needed, daemon=True).start()
 
 
 # =====================
@@ -454,8 +475,12 @@ def get_history():
 
 @app.route("/get_accuracy")
 def get_accuracy():
-    """Return current model accuracy."""
-    return jsonify({"accuracy":round(current_accuracy*100,2)})
+    """Return current model accuracy safely."""
+    try:
+        acc = current_accuracy if current_accuracy else 0
+        return jsonify({"accuracy": round(acc * 100, 2)})
+    except Exception:
+        return jsonify({"accuracy": 0})
 
 
 @app.route("/set_language", methods=["POST"])
