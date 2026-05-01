@@ -1,13 +1,11 @@
-import mediapipe as mp
-mp_hands = mp.solutions.hands
-mp_draw = mp.solutions.drawing_utils
 import cv2
 import csv
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
 import time
 
 def load_and_train_model(csv_paths=["gesture_data.csv"]):
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.model_selection import train_test_split
+    
     if isinstance(csv_paths, str):
         csv_paths = [csv_paths]
     
@@ -81,6 +79,8 @@ def predict_gesture(model, landmarks):
 
 # The following code block is only run when this script is executed directly
 if __name__ == "__main__":
+    import mediapipe as mp
+    mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(min_detection_confidence=0.8, min_tracking_confidence=0.8, max_num_hands=2)
 
     cam = cv2.VideoCapture(0)

@@ -20,7 +20,6 @@ Author: SilentEcho Team
 from flask import Flask, render_template, Response, jsonify, request, session
 from flask_socketio import SocketIO, emit
 import cv2
-import mediapipe as mp
 import os
 import csv
 import subprocess
@@ -29,13 +28,14 @@ import sqlite3
 import base64
 import numpy as np
 from werkzeug.security import generate_password_hash, check_password_hash
-from ultralytics import YOLO
-
-from gesture_recognition import load_and_train_model, predict_gesture
 
 app = Flask(__name__)
 app.secret_key = "secret"
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+
+@app.route("/health")
+def health_check():
+    return jsonify({"status": "ok", "message": "Server is running"})
 
 # =====================
 # SQLITE AUTH
@@ -125,11 +125,20 @@ mp_draw = mp.solutions.drawing_utils
 models_loaded = False
 
 def load_models_if_needed():
-    global asl_model, current_accuracy, isl_model, yolo_model, hands, models_loaded
+    global asl_model, current_accuracy, isl_model, yolo_model, hands, models_loaded, mp_hands, mp_draw
     if models_loaded:
         return
         
     print("Loading ML models...")
+    
+    # Deferred heavy imports
+    import mediapipe as mp
+    from ultralytics import YOLO
+    from gesture_recognition import load_and_train_model
+    
+    mp_hands = mp.solutions.hands
+    mp_draw = mp.solutions.drawing_utils
+    
     try:
         asl_model, current_accuracy = load_and_train_model()
     except Exception as e:
@@ -195,6 +204,9 @@ def process_image(data):
     global asl_model, isl_model, hands, mp_hands, mp_draw
     
     load_models_if_needed()
+    
+    # Import locally to avoid global blocking
+    from gesture_recognition import predict_gesture
 
     try:
         # Decode base64 image
