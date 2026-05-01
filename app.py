@@ -158,8 +158,14 @@ def load_models_if_needed():
     
     # Deferred heavy imports
     import mediapipe as mp
+    import torch
+    import gc
     from ultralytics import YOLO
     from gesture_recognition import load_and_train_model
+    
+    # Aggressive Memory Optimization for Render Free Tier (512MB RAM Limit)
+    torch.set_num_threads(1)
+    torch.set_grad_enabled(False)
     
     mp_hands = mp.solutions.hands
     mp_draw = mp.solutions.drawing_utils
@@ -189,6 +195,10 @@ def load_models_if_needed():
         min_tracking_confidence=0.7,
     )
     models_loaded = True
+    
+    # Force garbage collection to free any temporary memory spikes during loading
+    gc.collect()
+    
     print("Models loaded successfully.")
 
 # Spawn background loading thread

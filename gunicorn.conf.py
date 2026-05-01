@@ -6,5 +6,5 @@ bind = f"0.0.0.0:{port}"
 
 # Use standard threads instead of eventlet to support Flask-SocketIO in threading mode
 worker_class = "gthread"
-threads = 4
+threads = 2
 workers = 1
