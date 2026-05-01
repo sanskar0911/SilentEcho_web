@@ -5,10 +5,7 @@ import cv2
 import csv
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-import pyttsx3
 import time
-
-engine = pyttsx3.init()
 
 def load_and_train_model(csv_paths=["gesture_data.csv"]):
     if isinstance(csv_paths, str):
@@ -136,8 +133,6 @@ if __name__ == "__main__":
         if key == 115:  # 's' key
             speak = " ".join(sentence)
             print("Speaking:", speak)
-            engine.say(speak)
-            engine.runAndWait()
         if key == 99:  # 'c' key
             sentence = []
             print("Sentence Cleared.")

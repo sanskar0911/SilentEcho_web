@@ -357,7 +357,7 @@ def finish_word():
     if speak_enabled and final:
         subprocess.Popen([
         "python","-c",
-        f"import pyttsx3; e=pyttsx3.init(); e.say('{final}'); e.runAndWait()"
+        f"from gtts import gTTS; import os; tts=gTTS('{final}', lang='en'); tts.save('speech.mp3'); os.system('start speech.mp3' if os.name=='nt' else 'true')"
         ])
 
     return jsonify({"word":final})
@@ -401,7 +401,7 @@ def speak_sentence():
     if sentence:
         subprocess.Popen([
             "python","-c",
-            f"import pyttsx3; e=pyttsx3.init(); e.say('{sentence}'); e.runAndWait()"
+            f"from gtts import gTTS; import os; tts=gTTS('{sentence}', lang='en'); tts.save('speech.mp3'); os.system('start speech.mp3' if os.name=='nt' else 'true')"
         ])
 
     return jsonify({"sentence":sentence})

@@ -8,4 +8,4 @@ numpy
 ultralytics
 werkzeug
 gunicorn
-pyttsx3
+gtts
