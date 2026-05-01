@@ -1048,15 +1048,14 @@
             })
                 .then(d => d.json())
                 .then(data => {
-                    if (data.status == "ok") {
+                    if (data.status === "ok") {
                         document.getElementById("loginScreen").style.display = "none";
                     } else {
-                        alert("AUTHORIZATION DENIED: Access level not recognized.");
+                        alert("AUTHORIZATION DENIED: Invalid credentials.");
                     }
                 })
                 .catch(() => {
-                    console.warn("OFFLINE PREVIEW MODE: Bypassing Server Security");
-                    document.getElementById("loginScreen").style.display = "none";
+                    alert("Server error during login");
                 });
         }
 
@@ -1075,10 +1074,18 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: email, password: password })
             })
-                .then(r => r.json())
-                .then(d => {
-                    if (d.status == "ok") alert("REGISTRATION SUCCESSFUL. IDENTITY REGISTERED.");
-                    else alert("ERROR: Identity already exists in database.");
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "ok") {
+                        alert("Registered successfully!");
+                    } else if (data.status === "exists") {
+                        alert("User already exists");
+                    } else {
+                        alert("Registration failed");
+                    }
+                })
+                .catch(() => {
+                    alert("Server error");
                 });
         }
 
@@ -1092,7 +1099,33 @@
         let lastSpoken = "";
         let normalCooldown = false;
 
-        const socket = io();
+        const socket = io({
+            transports: ["polling"],
+            reconnectionAttempts: 3,
+            timeout: 5000
+        });
+        
+        let fetching = false;
+
+        async function safeFetch(url) {
+            if (fetching) return;
+            fetching = true;
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                console.log(`Polled ${url}:`, data);
+            } catch (e) {
+                console.error(`Error polling ${url}:`, e);
+            }
+
+            fetching = false;
+        }
+
+        // Controlled background polling
+        setInterval(() => safeFetch("/get_accuracy"), 5000);
+        setInterval(() => safeFetch("/get_history"), 5000);
+
         const video = document.getElementById('webcam');
         const hiddenCanvas = document.getElementById('hidden-canvas');
         const ctx = hiddenCanvas.getContext('2d');
