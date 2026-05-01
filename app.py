@@ -113,33 +113,49 @@ def login():
 # =====================
 # LOAD MODELS
 # =====================
-# Load ASL model from gesture_data.csv
-asl_model, current_accuracy = load_and_train_model()
-# Load ISL model from isl_gesture_data.csv
-isl_model,_ = load_and_train_model("isl_gesture_data.csv")
+asl_model = None
+current_accuracy = 0
+isl_model = None
+yolo_model = None
 
-# Try to load YOLO model for additional recognition
-try:
-    yolo_model = YOLO("runs/classify/train3/weights/best.pt")
-except:
-    try:
-        yolo_model = YOLO("best.pt")
-    except:
-        print("WARNING: YOLO model not found")
-        yolo_model = None
-
-# =====================
-# MEDIAPIPE
-# =====================
-# Initialize MediaPipe Hands for hand tracking
 mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(
-    max_num_hands=2,
-    min_detection_confidence=0.7,
-    min_tracking_confidence=0.7,
-)
-
+hands = None
 mp_draw = mp.solutions.drawing_utils
+
+models_loaded = False
+
+def load_models_if_needed():
+    global asl_model, current_accuracy, isl_model, yolo_model, hands, models_loaded
+    if models_loaded:
+        return
+        
+    print("Loading ML models...")
+    try:
+        asl_model, current_accuracy = load_and_train_model()
+    except Exception as e:
+        print("Failed to load ASL model:", e)
+        
+    try:
+        isl_model, _ = load_and_train_model("isl_gesture_data.csv")
+    except Exception as e:
+        print("Failed to load ISL model:", e)
+        
+    try:
+        yolo_model = YOLO("runs/classify/train3/weights/best.pt")
+    except:
+        try:
+            yolo_model = YOLO("best.pt")
+        except:
+            print("WARNING: YOLO model not found")
+            yolo_model = None
+            
+    hands = mp_hands.Hands(
+        max_num_hands=2,
+        min_detection_confidence=0.7,
+        min_tracking_confidence=0.7,
+    )
+    models_loaded = True
+    print("Models loaded successfully.")
 
 
 # =====================
@@ -176,6 +192,9 @@ def process_image(data):
     """
     global latest_prediction, last_prediction, last_spoken, latest_confidence
     global word_mode, word_buffer, last_added_letter, current_inference_mode, yolo_model
+    global asl_model, isl_model, hands, mp_hands, mp_draw
+    
+    load_models_if_needed()
 
     try:
         # Decode base64 image
