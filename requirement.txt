@@ -1,6 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
 flask
 flask-socketio
-eventlet
 mediapipe==0.10.9
 scikit-learn
 opencv-python-headless

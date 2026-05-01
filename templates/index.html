@@ -1194,8 +1194,11 @@
                         // Add to sentence automatically
                         addWordToSentence(suggestion);
                         
-                        // Speak the suggestion
-                        speak_logic(suggestion);
+                        if (d.audio_url) {
+                            new Audio(d.audio_url + '?t=' + new Date().getTime()).play();
+                        } else {
+                            speak_logic(suggestion);
+                        }
                     } else {
                         document.getElementById("prediction").innerText = "COMPLETE";
                     }
@@ -1282,8 +1285,15 @@
         }
 
         function speakSentence() {
-            fetch("/speak_sentence", { method: "POST" });
-            speak_logic(currentSentence);
+            fetch("/speak_sentence", { method: "POST" })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.audio_url) {
+                        new Audio(d.audio_url + '?t=' + new Date().getTime()).play();
+                    } else {
+                        speak_logic(currentSentence);
+                    }
+                });
         }
 
         function clearSentence() {

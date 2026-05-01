@@ -16,8 +16,6 @@ Features:
 
 Author: SilentEcho Team
 """
-import eventlet
-eventlet.monkey_patch()
 
 from flask import Flask, render_template, Response, jsonify, request, session
 from flask_socketio import SocketIO, emit
@@ -354,13 +352,18 @@ def finish_word():
     final="".join(word_buffer)
     last_added_letter=None
 
+    audio_url = None
     if speak_enabled and final:
-        subprocess.Popen([
-        "python","-c",
-        f"from gtts import gTTS; import os; tts=gTTS('{final}', lang='en'); tts.save('speech.mp3'); os.system('start speech.mp3' if os.name=='nt' else 'true')"
-        ])
+        try:
+            from gtts import gTTS
+            tts = gTTS(text=final, lang='en')
+            os.makedirs("static", exist_ok=True)
+            tts.save("static/speech.mp3")
+            audio_url = "/static/speech.mp3"
+        except Exception as e:
+            print("TTS Error:", e)
 
-    return jsonify({"word":final})
+    return jsonify({"word": final, "audio_url": audio_url})
 
 
 @app.route("/delete_letter",methods=["POST"])
@@ -398,13 +401,18 @@ def speak_sentence():
 
     sentence=" ".join(sentence_buffer)
 
+    audio_url = None
     if sentence:
-        subprocess.Popen([
-            "python","-c",
-            f"from gtts import gTTS; import os; tts=gTTS('{sentence}', lang='en'); tts.save('speech.mp3'); os.system('start speech.mp3' if os.name=='nt' else 'true')"
-        ])
+        try:
+            from gtts import gTTS
+            tts = gTTS(text=sentence, lang='en')
+            os.makedirs("static", exist_ok=True)
+            tts.save("static/speech.mp3")
+            audio_url = "/static/speech.mp3"
+        except Exception as e:
+            print("TTS Error:", e)
 
-    return jsonify({"sentence":sentence})
+    return jsonify({"sentence": sentence, "audio_url": audio_url})
 
 
 @app.route("/get_history")
@@ -503,6 +511,8 @@ def start_collection():
 
 
 # =====================
-if __name__=="__main__":
-    print("🚀 Running http://localhost:5000")
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
+if __name__ == "__main__":
+    init_db()
+    port = int(os.environ.get("PORT", 5000))
+    # allow_unsafe_werkzeug required when running socketio without async framework
+    socketio.run(app, host="0.0.0.0", port=port, debug=False, allow_unsafe_werkzeug=True)
